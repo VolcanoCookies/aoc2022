@@ -1,25 +1,78 @@
 import java.io.File
 
-class Room(
-	val name: String,
-	val flow: Int,
-	var open: Boolean,
-	val neighbours: MutableList<Room> = mutableListOf(),
-	val dist: MutableMap<Room, Int> = mutableMapOf()
-) {
+fun traverse(current: Room, other: Room, wait: Int, left: List<Room>, released: Int, timeLeft: Int): Int {
+	if (0 >= timeLeft) return released
 
-	override fun equals(other: Any?): Boolean {
-		if (this === other) return true
-		if (other !is Room) return false
+	val newReleased = released + (current.flow * (timeLeft - 1))
 
-		if (name != other.name) return false
+	val waitLeft = wait - 1
+	val newTimeLeft = timeLeft - 1
 
-		return true
+	if (left.isEmpty()) {
+		val v = if (newTimeLeft > waitLeft) {
+			other.flow * (newTimeLeft - waitLeft - 1)
+		} else {
+			0
+		}
+		return newReleased + v
 	}
 
-	override fun hashCode(): Int {
-		return name.hashCode()
+	var max = -1
+
+	for (next in left) {
+		val dist = current.dist[next]!!
+		val v = if (dist > waitLeft) {
+			traverse(other, next, dist - waitLeft, left - next, newReleased, newTimeLeft - waitLeft)
+		} else if (waitLeft > dist) {
+			traverse(next, other, waitLeft - dist, left - next, newReleased, newTimeLeft - dist)
+		} else {
+			traverseSim(next, other, left - next, newReleased, newTimeLeft - dist)
+		}
+
+		max = maxOf(max, v)
 	}
+
+	return max
+}
+
+fun traverseSim(room1: Room, room2: Room, left: List<Room>, released: Int, timeLeft: Int): Int {
+
+	if (timeLeft <= 0) return released
+
+	var newReleased = released
+
+	val o1 = room1.flow > 0
+	val o2 = room2.flow > 0
+	if (o1) {
+		newReleased += room1.flow * (timeLeft - 1)
+	}
+	if (o2) {
+		newReleased += room2.flow * (timeLeft - 1)
+	}
+
+	if (left.isEmpty()) {
+		return newReleased
+	}
+
+	var max = -1
+	for (next1 in left) {
+		val dist1 = room1.dist[next1]!! + if (o1) 1 else 0
+		for (next2 in (left - next1)) {
+			val dist2 = room2.dist[next2]!! + if (o2) 1 else 0
+
+			val v = if (dist1 > dist2) {
+				traverse(next2, next1, dist1 - dist2, left - next1 - next2, newReleased, timeLeft - dist2)
+			} else if (dist2 > dist1) {
+				traverse(next1, next2, dist2 - dist1, left - next1 - next2, newReleased, timeLeft - dist1)
+			} else {
+				traverseSim(next1, next2, left - next1 - next2, newReleased, timeLeft - dist1)
+			}
+
+			max = maxOf(max, v)
+		}
+	}
+
+	return max
 }
 
 fun main() {
@@ -77,117 +130,6 @@ fun main() {
 	val start = startAndRooms.first
 	val rooms = startAndRooms.second
 
-	fun traverse(current: Room, left: List<Room>, released: Int, timeLeft: Int): Int {
-		if (timeLeft == 0) return released
-		else if (left.isEmpty()) return released + (current.flow * (timeLeft - 1))
-
-		var max = -1
-		for (room in left) {
-			val dist = current.dist[room]!!
-			if (timeLeft >= dist) {
-				val v = if (current.flow > 0) {
-					traverse(room, left - room, released + (current.flow * (timeLeft - 1)), timeLeft - dist - 1)
-				} else {
-					traverse(room, left - room, released, timeLeft - dist)
-				}
-				max = maxOf(max, v)
-			} else {
-				val v = traverse(current, emptyList(), released, timeLeft)
-				max = maxOf(max, v)
-			}
-		}
-		return max
-	}
-
-	fun traverseDouble(current1: Room, current2: Room, left: List<Room>, released: Int, timeLeft: Int): Int {
-		if (timeLeft == 0) return released
-		else if (left.isEmpty()) return released + ((current1.flow + current2.flow) * (timeLeft - 1))
-
-		var max = -1
-		for (room1 in left) {
-			for (room2 in (left - room1)) {
-				val dist1 = current1.dist[room1]!!
-				val dist2 = current2.dist[room2]!!
-
-				if (timeLeft >= dist1 && timeLeft >= dist2) {
-					val v = if (current1.flow > 0) {
-						traverseDouble(
-							room1,
-							room2,
-							left - room1 - room2,
-							released + (current1.flow * (timeLeft - 1)),
-							timeLeft - dist1 - 1
-						)
-					} else {
-						traverseDouble(room, left - room, released, timeLeft - dist)
-					} + if (current2.flow > 0) {
-						traverseDouble(
-							current1,
-							current2,
-							left - current1 - current2,
-							released + (current1.flow * (timeLeft - 1)),
-							timeLeft - dist - 1
-						)
-					} else {
-						traverseDouble(room, left - room, released, timeLeft - dist)
-					}
-				} else if (timeLeft >= dist1) {
-
-				} else if (timeLeft >= dist2) {
-
-				} else {
-
-				}
-
-				val r1 = if (timeLeft >= dist1) {
-					if (current1.flow > 0) {
-						traverseDouble(
-							current1,
-							current2,
-							left - current1 - current2,
-							released + (current1.flow * (timeLeft - 1)),
-							timeLeft - dist - 1
-						)
-					} else {
-						traverseDouble(room, left - room, released, timeLeft - dist)
-					}
-				} else {
-					current1.flow * (timeLeft - 1)
-				}
-
-				val r2 = if (timeLeft >= dist2) {
-
-				} else {
-					current2.flow * (timeLeft - 1)
-				}
-
-
-				if (timeLeft >= dist) {
-					val v = if (current.flow > 0) {
-						traverseDouble(
-							room,
-							left - room,
-							released + (current.flow * (timeLeft - 1)),
-							timeLeft - dist - 1
-						)
-					} else {
-						traverseDouble(room, left - room, released, timeLeft - dist)
-					}
-					max = maxOf(max, v)
-				} else {
-					val v = traverseDouble(current, emptyList(), released, timeLeft)
-					max = maxOf(max, v)
-				}
-			}
-		}
-		return max
-	}
-
-	for (room in rooms) {
-		println(room.name)
-		println(room.dist.mapKeys { it.key.name })
-	}
-
-	val maxPres = traverseDouble(start, rooms, 0, 30)
+	val maxPres = traverseSim(start, start, rooms, 0, 26)
 	println(maxPres)
 }
